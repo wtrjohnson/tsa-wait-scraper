@@ -1,29 +1,33 @@
+from typing import Iterable, Sequence
 import psycopg2
+from psycopg2.extras import execute_values
 
-def save_rows(rows, conn_string):
-    conn = psycopg2.connect(conn_string)
-    cur = conn.cursor()
 
-    for row in rows:
-        cur.execute("""
-            INSERT INTO tsa_realtime
-            (airport_code, checkpoint,
-             general_status, general_min, general_max,
-             pre_status, pre_min, pre_max,
-             collected_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            row["airport"],
-            row["checkpoint"],
-            row["general_status"],
-            row["general_min"],
-            row["general_max"],
-            row["pre_status"],
-            row["pre_min"],
-            row["pre_max"],
-            row["timestamp"]
-        ))
+def save_rows(rows: Sequence[tuple], conn_str: str) -> None:
+    if not rows:
+        return
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    insert_sql = """
+        INSERT INTO tsa_waits (
+            airport_code,
+            checkpoint,
+            lane_type,
+            status,
+            wait_min,
+            wait_max,
+            source_raw,
+            collected_at
+        )
+        VALUES %s
+        ON CONFLICT (airport_code, checkpoint, lane_type, collected_at)
+        DO UPDATE SET
+            status     = EXCLUDED.status,
+            wait_min   = EXCLUDED.wait_min,
+            wait_max   = EXCLUDED.wait_max,
+            source_raw = EXCLUDED.source_raw;
+    """
+
+    with psycopg2.connect(conn_str) as conn:
+        with conn.cursor() as cur:
+            execute_values(cur, insert_sql, rows)
+        conn.commit()
