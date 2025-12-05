@@ -1,27 +1,30 @@
-from scrapers.dca import scrape_dca_wait
-from db.save import save_rows
-import os
+name: Run TSA Scrapers
 
-def main():
-    # Get Neon connection string (GitHub Actions will supply this)
-    conn_string = os.environ.get("NEON_CONN_STRING")
-    if not conn_string:
-        raise RuntimeError("NEON_CONN_STRING environment variable not set.")
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 minutes
+  workflow_dispatch:
 
-    # ---- DCA ----
-    dca_rows = scrape_dca_wait()
-    save_rows(dca_rows, conn_string)
+jobs:
+  run-scrapers:
+    runs-on: ubuntu-latest
 
-    # ---- Future airports go here ----
-    # from scrapers.iad import scrape_iad_wait
-    # iad_rows = scrape_iad_wait()
-    # save_rows(iad_rows, conn_string)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    # from scrapers.bwi import scrape_bwi_wait
-    # bwi_rows = scrape_bwi_wait()
-    # save_rows(bwi_rows, conn_string)
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
 
-    print("All scrapers completed successfully.")
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-if __name__ == "__main__":
-    main()
+      - name: Run DCA scraper
+        env:
+          NEON_CONN_STRING: ${{ secrets.NEON_CONN_STRING }}
+        run: |
+          python run_dca_scraper.py
