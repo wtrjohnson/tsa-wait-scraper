@@ -1,24 +1,29 @@
-from scrapers.dca import scrape_dca_wait
-from db.save import save_rows
 import os
 import sys
+from datetime import datetime, timezone
+
+from scrapers.dca import scrape_dca_wait
+from db.save import save_rows
 
 
 def main() -> None:
     conn = os.getenv("DATABASE_URL")
     if not conn:
-        # Fail loudly so you notice misconfig in Actions or locally
-        raise RuntimeError("DATABASE_URL environment variable is not set.")
+        raise RuntimeError("DATABASE_URL environment variable is not set")
 
-    rows = scrape_dca_wait()
+    # collected_at = when YOU pulled the data (UTC)
+    collected_at = datetime.now(timezone.utc)
+
+    # Expect scrape_dca_wait to return a list of rows shaped for tsa_waits
+    rows = scrape_dca_wait(collected_at=collected_at)
+
     save_rows(rows, conn)
-    print("Saved", len(rows), "rows.")
+    print(f"Saved {len(rows)} rows.")
 
 
 if __name__ == "__main__":
-    # Optional: basic guard for unexpected exceptions with a non-zero exit
     try:
         main()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"Error while running DCA scraper: {exc}", file=sys.stderr)
         sys.exit(1)
