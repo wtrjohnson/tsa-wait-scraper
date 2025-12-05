@@ -11,39 +11,60 @@ URL = "https://www.flyreagan.com/travel-information/security-information"
 
 def parse_wait(cell_text):
     """
-    Parse a DCA wait-time cell.
-
-    Returns:
-        status (str): "Open", "Closed", or "Unknown"
-        min (int or None)
-        max (int or None)
+    Robustly parse a wait time cell from DCA.
+    Returns: (status, min, max)
     """
+
     if not cell_text:
         return "Closed", None, None
 
     t = cell_text.strip().lower()
 
-    # Explicit closed behavior
+    # Closed
     if "closed" in t or t == "--":
         return "Closed", None, None
 
-    # If lane hasn't opened yet
     if "opens" in t:
         return "Closed", None, None
 
-    # Extract numeric content from cases like "< 5 mins" or "4-7 mins"
-    digits = "".join([c if c.isdigit() or c == "-" else " " for c in t])
-    parts = [p for p in digits.split() if p]
+    # Normalize punctuation: turn en-dashes etc. into standard hyphen
+    t = t.replace("–", "-").replace("—", "-")
 
-    # "< 5 mins" → treat as 0–5
+    # Extract only digits and hyphens
+    cleaned = ""
+    for c in t:
+        if c.isdigit() or c == "-":
+            cleaned += c
+        else:
+            cleaned += " "
+
+    parts = [p for p in cleaned.split() if p]
+
+    # Case: "< 5 mins" → parts might be ["5"]
     if len(parts) == 1:
-        return "Open", 0, int(parts[0])
+        # Example: "5"
+        try:
+            return "Open", 0, int(parts[0])
+        except ValueError:
+            return "Unknown", None, None
 
-    # "4-7 mins"
+    # Case: "4-7" or "4 - 7"
+    if len(parts) == 1 and "-" in parts[0]:
+        try:
+            lo, hi = parts[0].split("-")
+            return "Open", int(lo), int(hi)
+        except:
+            return "Unknown", None, None
+
+    # Case: properly split range ["4", "7"]
     if len(parts) == 2:
-        return "Open", int(parts[0]), int(parts[1])
+        try:
+            return "Open", int(parts[0]), int(parts[1])
+        except:
+            return "Unknown", None, None
 
     return "Unknown", None, None
+
 
 
 def scrape_dca_wait():
