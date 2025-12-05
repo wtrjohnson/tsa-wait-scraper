@@ -1,9 +1,24 @@
 from scrapers.dca import scrape_dca_wait
 from db.save import save_rows
+import os
+import sys
 
-CONN = "postgresql://neondb_owner:npg_vFYqz7NR0xOu@ep-damp-field-a4km4fee-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
-rows = scrape_dca_wait()
-save_rows(rows, CONN)
+def main() -> None:
+    conn = os.getenv("DATABASE_URL")
+    if not conn:
+        # Fail loudly so you notice misconfig in Actions or locally
+        raise RuntimeError("DATABASE_URL environment variable is not set.")
 
-print("Saved", len(rows), "rows.")
+    rows = scrape_dca_wait()
+    save_rows(rows, conn)
+    print("Saved", len(rows), "rows.")
+
+
+if __name__ == "__main__":
+    # Optional: basic guard for unexpected exceptions with a non-zero exit
+    try:
+        main()
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error while running DCA scraper: {exc}", file=sys.stderr)
+        sys.exit(1)
