@@ -2,7 +2,7 @@ name: Run TSA Scrapers
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Set up Python
@@ -23,8 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run DCA scraper
+      - name: Run scraper
         env:
-          NEON_CONN_STRING: ${{ secrets.NEON_CONN_STRING }}
-        run: |
-          python run_dca_scraper.py
+          DB_CONN: ${{ secrets.DB_CONN }}
+        run: python run_dca_scraper.py
