@@ -1,10 +1,7 @@
-# scrapers/slc.py
-
 import math
 import re
-import time
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Tuple
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -41,7 +38,7 @@ def parse_slc_wait_text(text: str) -> int | None:
     """
     Parse SLC's time string into an integer number of minutes.
 
-    Examples of expected input:
+    Expected examples:
         "6 minutes and 18 seconds"
         "3 minutes"
         "45 seconds"
@@ -69,19 +66,33 @@ def parse_slc_wait_text(text: str) -> int | None:
     if total_seconds < 0:
         return None
 
+    if total_seconds == 0:
+        return 0
+
     # Round UP so 6m18s -> 7 minutes
-    return int(math.ceil(total_seconds / 60)) if total_seconds > 0 else 0
+    return int(math.ceil(total_seconds / 60))
 
 
-def scrape_slc_wait(collected_at: datetime) -> List[Dict]:
+def scrape_slc_wait(collected_at: datetime) -> List[Tuple]:
     """
     Scrape SLC's estimated security screening wait time.
 
-    Returns a list of row dicts shaped for tsa_waits,
-    ready to be passed into db.save.save_rows().
+    Returns a list of tuples shaped for tsa_waits:
+
+        (airport_code,
+         checkpoint,
+         lane_type,
+         status,
+         wait_min,
+         wait_max,
+         source_raw,
+         collected_at)
     """
     driver = create_driver()
     wait_text = ""
+    wait_min = None
+    wait_max = None
+    status = "Unknown"
 
     try:
         driver.get(SLC_URL)
@@ -109,28 +120,29 @@ def scrape_slc_wait(collected_at: datetime) -> List[Dict]:
     finally:
         driver.quit()
 
-    row = {
-        "airport_code": AIRPORT_CODE,
-        "checkpoint": CHECKPOINT_NAME,
-        "lane_type": LANE_TYPE,
-        "status": status,
-        "wait_min": wait_min,
-        "wait_max": wait_max,
-        "source_raw": wait_text,
-        "collected_at": collected_at,
-    }
+    # Match DCA / save_rows expected shape:
+    # (airport_code, checkpoint, lane_type, status, wait_min, wait_max, source_raw, collected_at)
+    row = (
+        AIRPORT_CODE,
+        CHECKPOINT_NAME,
+        LANE_TYPE,
+        status,
+        wait_min,
+        wait_max,
+        wait_text,
+        collected_at,
+    )
 
     return [row]
 
 
 if __name__ == "__main__":
-    # Small manual test runner
     from datetime import timezone
 
     now = datetime.now(timezone.utc)
     rows = scrape_slc_wait(collected_at=now)
     for r in rows:
         print(
-            f"SLC scrape result: wait={r['wait_min']} min, "
-            f"status={r['status']}, raw='{r['source_raw']}'"
+            f"SLC scrape result: wait={r[4]} min, "
+            f"status={r[3]}, raw='{r[6]}'"
         )
